@@ -12,10 +12,12 @@ class PyImageSearchANPR:
         self.debug = debug
         self.char_width = 438
         self.char_height = 260
-        self.upper_chars = []
-        self.lower_chars = []
-        self.up_chars = 'ABCDEFGHIJKLMNOPQ'
-        self.low_chars = 'RSTUVWXYZ123456789'
+        self.upper_chars_pos = []
+        self.middle_chars_pos = []
+        self.lower_chars_pos = []
+        self.up_chars = 'ABCDEFGHIJKL'
+        self.mid_chars = 'MNOPQRSTUVW'
+        self.low_chars = 'XYZ1234567890'
 
     def character_space_creation(self, image):
 
@@ -120,8 +122,8 @@ class PyImageSearchANPR:
         height, width = char_space.shape[: 2]
 
         # resizing the char_space so that the template matches properly
-        height = 2 * self.char_height
-        char_space = cv2.resize(char_space, (width, 2 * self.char_height), interpolation=cv2.INTER_LINEAR)
+        height = 3 * self.char_height
+        char_space = cv2.resize(char_space, (width, height), interpolation=cv2.INTER_LINEAR)
 
         # saving the character space
         cv2.imwrite('char_space.png', char_space)
@@ -145,14 +147,19 @@ class PyImageSearchANPR:
             return
 
         # finding horizontal positions of characters in first half of character space
-        first_half = char_space[: height // 2, :]
+        first_half = char_space[: height // 3, :]
         self.debug_imshow('first half', first_half)
-        character_space(first_half, self.upper_chars)
+        character_space(first_half, self.upper_chars_pos)
+
+        # finding horizontal positions of characters in middle of character space
+        middle_half = char_space[height // 3: (2 * height) // 3, :]
+        self.debug_imshow('middle half', middle_half)
+        character_space(middle_half, self.middle_chars_pos)
 
         # finding horizontal positions of characters in second half of character space
-        second_half = char_space[height // 2:, :]
+        second_half = char_space[(2 * height) // 3:, :]
         self.debug_imshow('second half', second_half)
-        character_space(second_half, self.lower_chars)
+        character_space(second_half, self.lower_chars_pos)
         return
 
     def template_matching(self, template):
@@ -173,7 +180,7 @@ class PyImageSearchANPR:
         cv2.circle(sc, top_left, 50, 125, 10)
         cv2.circle(sc, bottom_right, 50, 125, 10)
         self.debug_imshow('a', sc)
-        return (bottom_right[0] + top_left[0]) // 2, (top_left[1] +  bottom_right[1]) // 2
+        return (bottom_right[0] + top_left[0]) // 2, (top_left[1] + bottom_right[1]) // 2
 
     def template_creation(self, plate):
         # text of the license plate
@@ -200,14 +207,19 @@ class PyImageSearchANPR:
                 pos = self.template_matching(template)
 
                 # if the matched character belongs to lower characters
-                if pos[1] >= self.char_height:
-                    ind = bisect_left(self.lower_chars, int(pos[0])) - 1
+                if pos[1] >= 2 * self.char_height:
+                    ind = bisect_left(self.lower_chars_pos, int(pos[0])) - 1
                     if ind >= len(self.low_chars):
                         ind = len(self.low_chars) - 1
                     text = text + self.low_chars[ind]
                 # if the matched characters belongs to upper characters
+                elif pos[1] >= self.char_height:
+                    ind = bisect_left(self.middle_chars_pos, int(pos[0])) - 1
+                    if ind >= len(self.mid_chars):
+                        ind = len(self.mid_chars) - 1
+                    text = text + self.mid_chars[ind]
                 else:
-                    ind = bisect_left(self.upper_chars, int(pos[0])) - 1
+                    ind = bisect_left(self.upper_chars_pos, int(pos[0])) - 1
                     if ind >= len(self.up_chars):
                         ind = len(self.up_chars) - 1
                     text = text + self.up_chars[ind]
