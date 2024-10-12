@@ -20,7 +20,7 @@ class PyImageSearchANPR:
         self.low_chars = 'XYZ1234567890'
 
     def character_space_creation(self, image):
-
+        image = cv2.GaussianBlur(image, (7, 7), 0)
         # finding negative of the given image
         def negative(img):
             img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -123,6 +123,7 @@ class PyImageSearchANPR:
 
         # resizing the char_space so that the template matches properly
         height = 3 * self.char_height
+        width = 14 * (self.char_width // 10)
         char_space = cv2.resize(char_space, (width, height), interpolation=cv2.INTER_LINEAR)
 
         # saving the character space
