@@ -259,6 +259,7 @@ class PyImageSearchANPR:
 
 if __name__ == '__main__':
     ob = PyImageSearchANPR(debug=True)
+    # can choose c also
     char_space = cv2.imread('c.png', 1)
     ob.character_space_creation(char_space)
     img = cv2.imread('plate.jpeg', 1)
