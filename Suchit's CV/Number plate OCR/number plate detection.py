@@ -15,12 +15,13 @@ class PyImageSearchANPR:
         self.upper_chars_pos = []
         self.middle_chars_pos = []
         self.lower_chars_pos = []
-        self.up_chars = 'ABCDEFGHIJKL'
-        self.mid_chars = 'MNOPQRSTUVW'
-        self.low_chars = 'XYZ1234567890'
+        self.up_chars = 'ABCDEFGHIJKLM'
+        self.mid_chars = 'NOPQRSTUVWXYZ'
+        self.low_chars = '1234567890'
 
     def character_space_creation(self, image):
         image = cv2.GaussianBlur(image, (7, 7), 0)
+
         # finding negative of the given image
         def negative(img):
             img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -157,17 +158,26 @@ class PyImageSearchANPR:
         self.debug_imshow('middle half', middle_half)
         character_space(middle_half, self.middle_chars_pos)
 
+        # creating letter character space
+        cv2.imwrite('letter_char_space.png', char_space[: (2 * height) // 3])
+
+        # creating number character space
+        cv2.imwrite('number_char_space.png', char_space[(2 * height) // 3:])
+
         # finding horizontal positions of characters in second half of character space
         second_half = char_space[(2 * height) // 3:, :]
         self.debug_imshow('second half', second_half)
         character_space(second_half, self.lower_chars_pos)
         return
 
-    def template_matching(self, template):
+    def template_matching(self, template, track):
         # the letter from the plate that needs to be identified is called template
         height, width = template.shape[: 2]
         # character space containing all possible characters
-        space = cv2.imread('char_space.png', 0)
+        if track <= 2 or track == 5:
+            space = cv2.imread('letter_char_space.png', 0)
+        else:
+            space = cv2.imread('number_char_space.png', 0)
         # result of template matching
         res = cv2.matchTemplate(space, template, cv2.TM_CCOEFF_NORMED)
         min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(res)
@@ -188,12 +198,15 @@ class PyImageSearchANPR:
         text = ''
         height, width = plate.shape[: 2]
         # i = current column in the image
-        i = 0
+        # track = number of blank spaces encountered up until that iteration; will help to figure out
+        # whether the next character is letter or number
+        i, track = 0, 0
         while i < width:
             # blank space
             if np.sum(plate[:, i]) == 0:
                 while i < width and np.sum(plate[:, i]) == 0:
                     i += 1
+                track += 1
             else:
                 # start of character in the license plate
                 region_left = i
@@ -205,25 +218,25 @@ class PyImageSearchANPR:
                 template = plate[:, region_left: region_right + 1].copy()
                 self.debug_imshow('a', template)
 
-                pos = self.template_matching(template)
+                pos = self.template_matching(template, track)
 
                 # if the matched character belongs to lower characters
-                if pos[1] >= 2 * self.char_height:
-                    ind = bisect_left(self.lower_chars_pos, int(pos[0])) - 1
-                    if ind >= len(self.low_chars):
-                        ind = len(self.low_chars) - 1
-                    text = text + self.low_chars[ind]
-                # if the matched characters belongs to upper characters
-                elif pos[1] >= self.char_height:
+                if (track <= 2 or track == 5) and pos[1] >= self.char_height:
                     ind = bisect_left(self.middle_chars_pos, int(pos[0])) - 1
                     if ind >= len(self.mid_chars):
                         ind = len(self.mid_chars) - 1
                     text = text + self.mid_chars[ind]
-                else:
+                # if the matched characters belongs to upper characters
+                elif (track <= 2 or track == 5) and pos[1] < self.char_height:
                     ind = bisect_left(self.upper_chars_pos, int(pos[0])) - 1
                     if ind >= len(self.up_chars):
                         ind = len(self.up_chars) - 1
                     text = text + self.up_chars[ind]
+                else:
+                    ind = bisect_left(self.lower_chars_pos, int(pos[0])) - 1
+                    if ind >= len(self.low_chars):
+                        ind = len(self.low_chars) - 1
+                    text = text + self.low_chars[ind]
 
         return text
 
@@ -260,7 +273,7 @@ class PyImageSearchANPR:
 if __name__ == '__main__':
     ob = PyImageSearchANPR(debug=True)
     # can choose c also
-    char_space = cv2.imread('c.png', 1)
+    char_space = cv2.imread('c1.png', 1)
     ob.character_space_creation(char_space)
     img = cv2.imread('plate.jpeg', 1)
     ob.character_optimization()
