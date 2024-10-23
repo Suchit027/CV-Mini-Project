@@ -6,7 +6,7 @@ from bisect import bisect_left
 
 
 class PyImageSearchANPR:
-    def __init__(self, minRatio=5, maxRatio=6, debug=False):
+    def __init__(self, minRatio=5, maxRatio=9, debug=False):
         self.minRatio = minRatio
         self.maxRatio = maxRatio
         self.debug = debug
@@ -42,7 +42,7 @@ class PyImageSearchANPR:
                 cv2.waitKey(0)
             cv2.destroyAllWindows()
 
-    def locate_license_plate_candidates(self, gray, keep=5):
+    def locate_license_plate_candidates(self, gray):
 
         # performing blackhat morphological operation to get dark text on light regions
         # rectkernel defines the neighborhood for morphological operations
@@ -97,7 +97,7 @@ class PyImageSearchANPR:
         # we are keeping only a specified number of contours
         contours = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         contours = imutils.grab_contours(contours)
-        contours = sorted(contours, key=cv2.contourArea, reverse=True)[: keep]
+        contours = sorted(contours, key=cv2.contourArea, reverse=True)[:]
         return contours
 
     def locate_license_plate(self, gray, candidates, clearBorder=False):
@@ -106,6 +106,7 @@ class PyImageSearchANPR:
         for c in candidates:
             x, y, w, h = cv2.boundingRect(c)
             aspect_ratio = w / float(h)
+            # print(aspect_ratio)
             if self.minRatio <= aspect_ratio <= self.maxRatio:
                 plateContour = c
                 plate = gray[y: y + h, x: x + w]
@@ -210,10 +211,17 @@ class PyImageSearchANPR:
             else:
                 # start of character in the license plate
                 region_left = i
+                val = 0
                 while i < width and np.sum(plate[:, i]) > 0:
                     i += 1
+                    val += np.sum(plate[:, i])
                 # end of character in the license plate
                 region_right = i
+                if val < ((region_right - region_left) * self.char_height * 255) // 5:
+                    track -= 1
+                    continue
+                # print(((region_right - region_left) * self.char_height) // 2)
+                # print(val)
                 # extracting the character
                 template = plate[:, region_left: region_right + 1].copy()
                 self.debug_imshow('a', template)
@@ -244,6 +252,8 @@ class PyImageSearchANPR:
         # text on license plate
         plate_text = ''
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        gray = cv2.resize(gray, (438, 260), interpolation= cv2.INTER_AREA)
+        self.debug_imshow('test', gray)
         candidates = self.locate_license_plate_candidates(gray)
         (plate, contour) = self.locate_license_plate(gray, candidates, clearBorder=clearBorder)
         if plate is not None:
@@ -262,9 +272,11 @@ class PyImageSearchANPR:
 
             # making the letters more thin
             rectKernel = cv2.getStructuringElement(cv2.MORPH_RECT, (8, 7))
+            rectKernel1 = cv2.getStructuringElement(cv2.MORPH_RECT, (4, 3))
             plate_copy = cv2.erode(plate_copy, rectKernel, iterations=1)
+            plate_copy = cv2.dilate(plate_copy, rectKernel, iterations=1)
+            plate_copy = cv2.erode(plate_copy, rectKernel1, iterations=2)
             self.debug_imshow('final plate image', plate_copy)
-
             plate_text = self.template_creation(plate_copy)
 
         return plate_text
@@ -275,7 +287,7 @@ if __name__ == '__main__':
     # can choose c also
     char_space = cv2.imread('c1.png', 1)
     ob.character_space_creation(char_space)
-    img = cv2.imread('plate.jpeg', 1)
+    img = cv2.imread('img7.jpg', 1)
     ob.character_optimization()
     license_plate = ob.find_and_ocr(img, clearBorder=True)
     print(license_plate)
